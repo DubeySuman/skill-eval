@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skill Eval — test any Claude skill</title>
+<style>
+  :root {
+    --bg: #0e0e11;
+    --surface: #16161a;
+    --surface2: #1e1e24;
+    --border: #2a2a35;
+    --border-focus: #4a4a6a;
+    --text: #e8e8f0;
+    --text-muted: #7070a0;
+    --text-dim: #4a4a70;
+    --accent: #6c63ff;
+    --accent-dim: #3d3880;
+    --accent-glow: rgba(108,99,255,0.15);
+    --green: #22c55e;
+    --green-dim: #14532d;
+    --red: #ef4444;
+    --red-dim: #7f1d1d;
+    --yellow: #eab308;
+    --yellow-dim: #713f12;
+    --font: 'Inter', system-ui, -apple-system, sans-serif;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    --radius: 8px;
+    --radius-lg: 12px;
+  }
+
+  [data-theme="light"] {
+    --bg: #f5f5fa;
+    --surface: #ffffff;
+    --surface2: #f0f0f7;
+    --border: #dddde8;
+    --border-focus: #9090c0;
+    --text: #1a1a2e;
+    --text-muted: #5050808;
+    --text-dim: #9090b8;
+    --accent-glow: rgba(108,99,255,0.08);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  /* TOPBAR */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    height: 46px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 10px; }
+  .logo { font-weight: 700; font-size: 14px; letter-spacing: -0.3px; }
+  .logo span { color: var(--accent); }
+  .tagline { color: var(--text-muted); font-size: 12px; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: pulse 2s infinite;
+  }
+  .status-dot.offline { background: var(--red); box-shadow: 0 0 6px var(--red); animation: none; }
+  .status-label { font-size: 11px; color: var(--text-muted); }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  .theme-btn {
+    background: none; border: 1px solid var(--border); color: var(--text-muted);
+    border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 11px;
+    transition: all 0.15s;
+  }
+  .theme-btn:hover { border-color: var(--border-focus); color: var(--text); }
+
+  /* LAYOUT */
+  .layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    height: calc(100vh - 46px);
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .sidebar-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-section:last-child { border-bottom: none; flex: 1; }
+
+  .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+
+  /* API KEY */
+  .key-badge {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+  .key-badge svg { width: 12px; height: 12px; }
+
+  .input-row { display: flex; gap: 6px; align-items: center; }
+  input[type="password"], input[type="text"], textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 12px;
+    padding: 7px 10px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input[type="password"]:focus, input[type="text"]:focus, textarea:focus {
+    border-color: var(--accent);
+  }
+  .key-status {
+    font-size: 11px; margin-top: 5px; height: 16px;
+    color: var(--text-muted);
+  }
+  .key-status.valid { color: var(--green); }
+  .key-status.invalid { color: var(--red); }
+
+  .icon-btn {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-muted); border-radius: 6px; padding: 6px 8px;
+    cursor: pointer; font-size: 12px; white-space: nowrap;
+    transition: all 0.15s; flex-shrink: 0;
+  }
+  .icon-btn:hover { border-color: var(--border-focus); color: var(--text); }
+
+  /* SKILL CONTENT */
+  .skill-textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 8px 10px;
+    outline: none;
+    resize: vertical;
+    min-height: 140px;
+    line-height: 1.6;
+    transition: border-color 0.15s;
+  }
+  .skill-textarea:focus { border-color: var(--accent); }
+  .skill-textarea.has-content { border-color: var(--accent-dim); }
+
+  .skill-hint {
+    font-size: 11px; color: var(--text-dim); margin-bottom: 8px; line-height: 1.5;
+  }
+  .skill-hint strong { color: var(--text-muted); }
+
+  /* ANALYZING INDICATOR */
+  .analyzing-bar {
+    display: none;
+    align-items: center; gap: 8px;
+    padding: 8px 10px;
+    background: var(--accent-glow);
+    border: 1px solid var(--accent-dim);
+    border-radius: var(--radius);
+    margin-top: 8px;
+    font-size: 11px; color: var(--accent);
+  }
+  .analyzing-bar.visible { display: flex; }
+  .spin { animation: spin 1s linear infinite; display: inline-block; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  /* MAIN PANEL */
+  .main { display: flex; flex-direction: column; overflow: hidden; }
+
+  /* TABS */
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    padding: 0 20px;
+    gap: 2px;
+  }
+  .tab {
+    background: none; border: none; color: var(--text-muted);
+    padding: 12px 14px; cursor: pointer; font-size: 13px;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: all 0.15s; font-family: var(--font);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+  .tab-badge {
+    background: var(--accent-dim); color: var(--accent);
+    border-radius: 10px; padding: 1px 6px; font-size: 10px; font-weight: 600;
+  }
+
+  /* PANEL CONTENT */
+  .panel { display: none; flex: 1; overflow-y: auto; padding: 20px; flex-direction: column; gap: 16px; }
+  .panel.active { display: flex; }
+
+  /* TEST PROMPTS AREA */
+  .tests-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .tests-title { font-size: 12px; font-weight: 600; color: var(--text); }
+  .tests-meta { font-size: 11px; color: var(--text-muted); }
+
+  .test-cards {
+    display: flex; flex-direction: column; gap: 6px;
+  }
+
+  .test-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: flex-start; gap: 10px;
+  }
+  .test-card:hover { border-color: var(--border-focus); background: var(--surface); }
+  .test-card.selected { border-color: var(--accent); background: var(--accent-glow); }
+
+  .test-card-meta {
+    display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; width: 68px;
+  }
+  .test-type-badge {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.5px;
+    padding: 2px 5px; border-radius: 4px; text-align: center; width: fit-content;
+  }
+  .test-type-badge.positive { background: var(--green-dim); color: var(--green); }
+  .test-type-badge.negative { background: var(--red-dim); color: var(--red); }
+  .test-type-badge.edge { background: var(--yellow-dim); color: var(--yellow); }
+
+  .complexity-badge {
+    font-size: 9px; color: var(--text-dim); font-weight: 500;
+  }
+
+  .test-card-content { flex: 1; }
+  .test-card-label { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+  .test-card-prompt { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+
+  /* EMPTY STATE */
+  .empty-tests {
+    background: var(--surface2);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-lg);
+    padding: 28px 20px;
+    text-align: center;
+  }
+  .empty-icon { font-size: 28px; margin-bottom: 10px; }
+  .empty-title { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+  .empty-desc { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+
+  /* CUSTOM PROMPT */
+  .custom-prompt-area {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .custom-prompt-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .custom-prompt-title { font-size: 12px; font-weight: 600; }
+  .custom-prompt-hint { font-size: 11px; color: var(--text-muted); }
+  .custom-prompt-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .custom-textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 12px;
+    padding: 10px 12px;
+    outline: none;
+    resize: vertical;
+    min-height: 80px;
+    line-height: 1.6;
+    transition: border-color 0.15s;
+  }
+  .custom-textarea:focus { border-color: var(--accent); }
+  .custom-textarea::placeholder { color: var(--text-dim); }
+
+  /* ACTION BUTTONS */
+  .action-row { display: flex; gap: 8px; }
+  .btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border-radius: var(--radius); border: none;
+    font-family: var(--font); font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover:not(:disabled) { background: #7c74ff; }
+  .btn-secondary { background: var(--surface2); border: 1px solid var(--border); color: var(--text); }
+  .btn-secondary:hover:not(:disabled) { border-color: var(--border-focus); }
+  .btn-danger { background: var(--red-dim); border: 1px solid var(--red); color: var(--red); }
+  .btn-danger:hover:not(:disabled) { background: #991b1b; }
+
+  /* RESULT */
+  .result-container {
+    display: flex; flex-direction: column; gap: 14px;
+  }
+
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .result-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+  .result-card-title { font-size: 12px; font-weight: 600; }
+  .result-card-body { padding: 14px; }
+
+  /* SCORE DISPLAY */
+  .score-total {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 14px;
+  }
+  .score-circle {
+    width: 60px; height: 60px; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border: 3px solid var(--accent);
+    flex-shrink: 0;
+  }
+  .score-circle.pass { border-color: var(--green); }
+  .score-circle.fail { border-color: var(--red); }
+  .score-circle.partial { border-color: var(--yellow); }
+  .score-num { font-size: 18px; font-weight: 800; line-height: 1; }
+  .score-label { font-size: 9px; color: var(--text-muted); text-transform: uppercase; }
+
+  .score-meta { flex: 1; }
+  .score-verdict {
+    font-size: 13px; font-weight: 700; margin-bottom: 4px;
+  }
+  .score-verdict.pass { color: var(--green); }
+  .score-verdict.fail { color: var(--red); }
+  .score-verdict.partial { color: var(--yellow); }
+  .score-summary { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+  .score-dims { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .score-dim {
+    background: var(--surface2); border-radius: var(--radius);
+    padding: 8px 10px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .score-dim-name { font-size: 11px; color: var(--text-muted); text-transform: capitalize; }
+  .score-dim-val { font-size: 12px; font-weight: 700; color: var(--text); }
+  .score-dim-bar-wrap { width: 100%; height: 3px; background: var(--border); border-radius: 2px; margin-top: 4px; }
+  .score-dim-bar { height: 100%; border-radius: 2px; background: var(--accent); transition: width 0.5s ease; }
+  .score-dim-inner { flex: 1; margin-left: 10px; }
+
+  .issues-list { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+  .issue-item {
+    display: flex; align-items: flex-start; gap: 6px;
+    font-size: 11px; color: var(--text-muted); line-height: 1.4;
+  }
+  .issue-dot { color: var(--yellow); flex-shrink: 0; margin-top: 1px; }
+
+  .response-text {
+    font-family: var(--font); font-size: 12px; line-height: 1.7;
+    color: var(--text); white-space: pre-wrap; word-break: break-word;
+    max-height: 280px; overflow-y: auto;
+  }
+
+  /* LOADING */
+  .loading-overlay {
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    padding: 40px; gap: 12px;
+  }
+  .loading-overlay.visible { display: flex; }
+  .loading-spinner {
+    width: 32px; height: 32px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  .loading-text { font-size: 13px; color: var(--text-muted); }
+
+  /* BATCH RESULTS */
+  .batch-summary {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    margin-bottom: 14px;
+  }
+  .batch-stat {
+    background: var(--surface2); border-radius: var(--radius); padding: 12px;
+    text-align: center;
+  }
+  .batch-stat-num { font-size: 22px; font-weight: 800; }
+  .batch-stat-num.green { color: var(--green); }
+  .batch-stat-num.red { color: var(--red); }
+  .batch-stat-num.accent { color: var(--accent); }
+  .batch-stat-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  .batch-result-row {
+    background: var(--surface2); border-radius: var(--radius);
+    padding: 10px 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 10px;
+    cursor: pointer; transition: all 0.15s; border: 1px solid transparent;
+  }
+  .batch-result-row:hover { border-color: var(--border-focus); background: var(--surface); }
+  .batch-row-score {
+    font-size: 15px; font-weight: 800; width: 36px; text-align: center; flex-shrink: 0;
+  }
+  .batch-row-prompt { flex: 1; font-size: 12px; color: var(--text-muted); }
+  .batch-row-verdict { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
+  .batch-row-verdict.PASS { background: var(--green-dim); color: var(--green); }
+  .batch-row-verdict.FAIL { background: var(--red-dim); color: var(--red); }
+  .batch-row-verdict.PARTIAL { background: var(--yellow-dim); color: var(--yellow); }
+
+  /* HISTORY */
+  .history-empty {
+    text-align: center; padding: 40px 20px; color: var(--text-muted);
+  }
+  .history-item {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .history-item:hover { border-color: var(--border-focus); background: var(--surface); }
+  .history-score {
+    font-size: 16px; font-weight: 800; width: 40px; flex-shrink: 0; text-align: center;
+  }
+  .history-info { flex: 1; }
+  .history-prompt { font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; }
+  .history-time { font-size: 11px; color: var(--text-dim); }
+  .history-verdict { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+  .history-verdict.PASS { background: var(--green-dim); color: var(--green); }
+  .history-verdict.FAIL { background: var(--red-dim); color: var(--red); }
+  .history-verdict.PARTIAL { background: var(--yellow-dim); color: var(--yellow); }
+  .history-verdict.ERROR { background: #1f1f1f; color: var(--text-muted); }
+
+  .clear-history-btn { margin-bottom: 12px; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-focus); }
+
+  /* TOOLTIP */
+  [data-tip] { position: relative; }
+  [data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    background: #1a1a2e; border: 1px solid var(--border); color: var(--text);
+    font-size: 11px; padding: 4px 8px; border-radius: 5px; white-space: nowrap; z-index: 999;
+  }
+
+  /* DIVIDER */
+  .divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+  /* PROGRESS BAR */
+  .progress-bar-wrap {
+    display: none; height: 3px; background: var(--border); border-radius: 2px; margin-top: 6px;
+  }
+  .progress-bar-wrap.visible { display: block; }
+  .progress-bar-fill {
+    height: 100%; border-radius: 2px; background: var(--accent);
+    transition: width 0.3s ease;
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo">Skill <span>Eval</span></div>
+    <div class="tagline">— test any Claude skill · free via Groq API</div>
+  </div>
+  <div class="topbar-right">
+    <button class="theme-btn" onclick="toggleTheme()">☀ Light</button>
+    <div class="status-dot" id="statusDot"></div>
+    <div class="status-label" id="statusLabel">checking...</div>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    <!-- API KEY -->
+    <div class="sidebar-section">
+      <div class="section-label">API Key</div>
+      <div class="key-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+        </svg>
+        Your key, your tokens. Never stored.
+      </div>
+      <div class="input-row">
+        <input type="password" id="apiKey" placeholder="gsk_..." oninput="validateKey(this.value)" />
+        <button class="icon-btn" onclick="toggleKeyVisibility()" id="eyeBtn">👁</button>
+      </div>
+      <div class="key-status" id="keyStatus">Enter your Groq API key to begin</div>
+    </div>
+
+    <!-- SKILL CONTENT -->
+    <div class="sidebar-section">
+      <div class="section-label">Skill Content</div>
+      <div class="skill-hint">
+        <strong>Paste your SKILL.md</strong> — this becomes the system prompt, exactly how Claude.ai loads a skill.
+      </div>
+      <textarea
+        class="skill-textarea"
+        id="skillContent"
+        placeholder="---&#10;name: your-skill&#10;description: ...&#10;---&#10;&#10;# Your Skill Name&#10;..."
+        oninput="onSkillContentChange()"
+        rows="10"
+      ></textarea>
+      <div class="analyzing-bar" id="analyzingBar">
+        <span class="spin">⟳</span>
+        <span id="analyzingText">Analyzing skill & generating tests...</span>
+      </div>
+      <div class="progress-bar-wrap" id="analyzeProgress">
+        <div class="progress-bar-fill" id="analyzeProgressFill" style="width: 0%"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- TABS -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('test')" id="tab-test">
+        Test
+      </button>
+      <button class="tab" onclick="switchTab('batch')" id="tab-batch">
+        Batch
+      </button>
+      <button class="tab" onclick="switchTab('history')" id="tab-history">
+        History
+        <span class="tab-badge" id="historyBadge">0</span>
+      </button>
+    </div>
+
+    <!-- TEST PANEL -->
+    <div class="panel active" id="panel-test">
+
+      <!-- TEST PROMPTS -->
+      <div>
+        <div class="tests-header">
+          <div class="tests-title">Test Prompts</div>
+          <div class="tests-meta" id="testsMetaLabel">Paste your skill above to generate tests</div>
+        </div>
+
+        <div id="testCardsContainer">
+          <div class="empty-tests">
+            <div class="empty-icon">🧪</div>
+            <div class="empty-title">No tests generated yet</div>
+            <div class="empty-desc">Paste your SKILL.md content in the sidebar.<br>Tests will be generated automatically based on your skill's triggers, domain, and purpose.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CUSTOM PROMPT -->
+      <div class="custom-prompt-area">
+        <div class="custom-prompt-header">
+          <div class="custom-prompt-title">Custom Prompt</div>
+          <div class="custom-prompt-hint">Write your own test case</div>
+        </div>
+        <div class="custom-prompt-body">
+          <textarea
+            class="custom-textarea"
+            id="customPrompt"
+            placeholder="Type any prompt you want to test against the skill... e.g. 'I have an idea for a SaaS product that helps restaurants manage their inventory'"
+          ></textarea>
+          <div class="action-row">
+            <button class="btn btn-primary" onclick="runCustomTest()" id="runCustomBtn" disabled>
+              ▶ Run Custom Test
+            </button>
+            <button class="btn btn-secondary" onclick="clearCustom()">
+              Clear
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- RESULT AREA -->
+      <div id="resultArea"></div>
+
+    </div>
+
+    <!-- BATCH PANEL -->
+    <div class="panel" id="panel-batch">
+      <div>
+        <div class="tests-header">
+          <div class="tests-title">Batch Test</div>
+          <div class="tests-meta">Run all generated tests at once</div>
+        </div>
+        <p style="font-size:12px; color: var(--text-muted); line-height:1.6; margin-bottom: 14px;">
+          Batch mode runs all auto-generated tests sequentially and gives you an aggregate score. Use this after every skill update to catch regressions.
+        </p>
+        <div class="action-row" style="margin-bottom: 16px;">
+          <button class="btn btn-primary" onclick="runBatch()" id="runBatchBtn" disabled>
+            ▶ Run All Tests
+          </button>
+        </div>
+        <div id="batchResultArea"></div>
+      </div>
+    </div>
+
+    <!-- HISTORY PANEL -->
+    <div class="panel" id="panel-history">
+      <div>
+        <div class="tests-header">
+          <div class="tests-title">Run History</div>
+          <div class="tests-meta">This session only</div>
+        </div>
+        <div id="historyContainer">
+          <div class="history-empty">No runs yet. Test something to see history here.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────
+let state = {
+  apiKey: '',
+  skillContent: '',
+  generatedTests: [],
+  selectedTestIndex: -1,
+  history: [],
+  theme: 'dark',
+  skillDebounceTimer: null,
+};
+
+// ─── INIT ────────────────────────────────────────────────────────
+window.onload = () => {
+  checkServerHealth();
+  setInterval(checkServerHealth, 30000);
+  updateHistoryBadge();
+};
+
+// ─── THEME ───────────────────────────────────────────────────────
+function toggleTheme() {
+  state.theme = state.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', state.theme === 'light' ? 'light' : '');
+  document.querySelector('.theme-btn').textContent = state.theme === 'dark' ? '☀ Light' : '🌙 Dark';
+}
+
+// ─── SERVER HEALTH ───────────────────────────────────────────────
+async function checkServerHealth() {
+  try {
+    const r = await fetch('/api/health');
+    const online = r.ok;
+    document.getElementById('statusDot').className = 'status-dot' + (online ? '' : ' offline');
+    document.getElementById('statusLabel').textContent = online ? 'Server online' : 'Server offline';
+  } catch {
+    document.getElementById('statusDot').className = 'status-dot offline';
+    document.getElementById('statusLabel').textContent = 'Server offline';
+  }
+}
+
+// ─── API KEY ─────────────────────────────────────────────────────
+function validateKey(val) {
+  state.apiKey = val.trim();
+  const el = document.getElementById('keyStatus');
+  if (!val) {
+    el.textContent = 'Enter your Groq API key to begin';
+    el.className = 'key-status';
+  } else if (val.startsWith('gsk_') && val.length > 20) {
+    el.textContent = '✓ Key looks valid';
+    el.className = 'key-status valid';
+  } else {
+    el.textContent = '✗ Should start with gsk_...';
+    el.className = 'key-status invalid';
+  }
+  updateRunButtons();
+}
+
+function toggleKeyVisibility() {
+  const inp = document.getElementById('apiKey');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+// ─── SKILL CONTENT CHANGE ────────────────────────────────────────
+function onSkillContentChange() {
+  const content = document.getElementById('skillContent').value.trim();
+  state.skillContent = content;
+
+  const ta = document.getElementById('skillContent');
+  ta.className = 'skill-textarea' + (content ? ' has-content' : '');
+
+  updateRunButtons();
+
+  // Debounce: wait 1.5s after user stops typing before generating tests
+  clearTimeout(state.skillDebounceTimer);
+  if (content.length > 50) {
+    state.skillDebounceTimer = setTimeout(() => {
+      if (state.apiKey && state.apiKey.startsWith('gsk_')) {
+        generateTests();
+      } else if (content.length > 100) {
+        // Show placeholder tests if no API key yet
+        showPlaceholderTests();
+      }
+    }, 1500);
+  } else {
+    resetTests();
+  }
+}
+
+function resetTests() {
+  state.generatedTests = [];
+  state.selectedTestIndex = -1;
+  document.getElementById('testCardsContainer').innerHTML = `
+    <div class="empty-tests">
+      <div class="empty-icon">🧪</div>
+      <div class="empty-title">No tests generated yet</div>
+      <div class="empty-desc">Paste your SKILL.md content in the sidebar.<br>Tests will be generated automatically based on your skill's triggers, domain, and purpose.</div>
+    </div>`;
+  document.getElementById('testsMetaLabel').textContent = 'Paste your skill above to generate tests';
+  updateRunButtons();
+}
+
+function showPlaceholderTests() {
+  document.getElementById('testsMetaLabel').textContent = 'Enter API key to auto-generate tests';
+}
+
+// ─── GENERATE TESTS ──────────────────────────────────────────────
+async function generateTests() {
+  if (!state.apiKey || !state.skillContent) return;
+
+  // Show analyzing bar
+  const bar = document.getElementById('analyzingBar');
+  const progress = document.getElementById('analyzeProgress');
+  const fill = document.getElementById('analyzeProgressFill');
+  bar.classList.add('visible');
+  progress.classList.add('visible');
+
+  // Animate progress bar
+  let prog = 0;
+  const progInterval = setInterval(() => {
+    prog = Math.min(prog + Math.random() * 15, 85);
+    fill.style.width = prog + '%';
+  }, 300);
+
+  try {
+    const res = await fetch('/api/generate-tests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: state.apiKey, skill_content: state.skillContent })
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    state.generatedTests = data.tests || [];
+
+    fill.style.width = '100%';
+    setTimeout(() => {
+      bar.classList.remove('visible');
+      progress.classList.remove('visible');
+      fill.style.width = '0%';
+    }, 400);
+
+    clearInterval(progInterval);
+    renderTestCards();
+    updateRunButtons();
+  } catch (err) {
+    clearInterval(progInterval);
+    bar.classList.remove('visible');
+    progress.classList.remove('visible');
+    fill.style.width = '0%';
+    document.getElementById('testsMetaLabel').textContent = 'Test generation failed — try manually';
+    console.error('Generate tests error:', err);
+  }
+}
+
+// ─── RENDER TEST CARDS ───────────────────────────────────────────
+function renderTestCards() {
+  const container = document.getElementById('testCardsContainer');
+  if (!state.generatedTests.length) {
+    container.innerHTML = '<div class="empty-tests"><div class="empty-title">No tests generated</div></div>';
+    return;
+  }
+
+  document.getElementById('testsMetaLabel').textContent = `${state.generatedTests.length} tests generated · click to select`;
+
+  container.innerHTML = state.generatedTests.map((t, i) => `
+    <div class="test-card ${state.selectedTestIndex === i ? 'selected' : ''}" onclick="selectTest(${i})">
+      <div class="test-card-meta">
+        <span class="test-type-badge ${(t.type||'').toLowerCase()}">${t.type || 'TEST'}</span>
+        <span class="complexity-badge">${t.complexity || ''}</span>
+      </div>
+      <div class="test-card-content">
+        <div class="test-card-label">${t.label}</div>
+        <div class="test-card-prompt">${t.prompt}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectTest(i) {
+  state.selectedTestIndex = i;
+  renderTestCards();
+  // Put the prompt in custom area for reference and run it
+  const t = state.generatedTests[i];
+  if (t) {
+    document.getElementById('customPrompt').value = t.prompt;
+    runSingleEval(t.prompt, `${t.label} (${t.type} · ${t.complexity})`);
+  }
+}
+
+// ─── RUN CUSTOM TEST ─────────────────────────────────────────────
+function runCustomTest() {
+  const prompt = document.getElementById('customPrompt').value.trim();
+  if (!prompt) return;
+  state.selectedTestIndex = -1;
+  renderTestCards();
+  runSingleEval(prompt, 'Custom Prompt');
+}
+
+function clearCustom() {
+  document.getElementById('customPrompt').value = '';
+  state.selectedTestIndex = -1;
+  renderTestCards();
+}
+
+// ─── SINGLE EVAL ─────────────────────────────────────────────────
+async function runSingleEval(prompt, label) {
+  if (!state.apiKey || !state.skillContent || !prompt) return;
+
+  const resultArea = document.getElementById('resultArea');
+  resultArea.innerHTML = `
+    <div class="result-card">
+      <div class="loading-overlay visible">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Running eval: <strong>${escapeHtml(label)}</strong>...</div>
+      </div>
+    </div>`;
+
+  try {
+    const res = await fetch('/api/eval', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: state.apiKey,
+        skill_content: state.skillContent,
+        test_prompt: prompt
+      })
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+
+    const entry = {
+      id: Date.now(),
+      label,
+      prompt,
+      result: data,
+      time: new Date().toLocaleTimeString()
+    };
+    state.history.unshift(entry);
+    updateHistoryBadge();
+    renderHistory();
+
+    renderSingleResult(resultArea, data, label, prompt);
+  } catch (err) {
+    resultArea.innerHTML = `
+      <div class="result-card">
+        <div class="result-card-header"><div class="result-card-title">Error</div></div>
+        <div class="result-card-body" style="color: var(--red); font-size:12px;">${escapeHtml(String(err))}</div>
+      </div>`;
+  }
+}
+
+function renderSingleResult(container, data, label, prompt) {
+  const eval_ = data.evaluation || {};
+  const scores = eval_.scores || {};
+  const total = eval_.total || 0;
+  const verdict = (eval_.verdict || 'PARTIAL').toUpperCase();
+  const verdictClass = verdict === 'PASS' ? 'pass' : verdict === 'FAIL' ? 'fail' : 'partial';
+
+  const scoreColor = total >= 80 ? 'var(--green)' : total >= 50 ? 'var(--yellow)' : 'var(--red)';
+
+  const dims = ['trigger', 'domain', 'gate', 'questions', 'assumptions'];
+
+  container.innerHTML = `
+    <div class="result-card">
+      <div class="result-card-header">
+        <div class="result-card-title">📊 Evaluation — ${escapeHtml(label)}</div>
+        <div style="font-size:11px; color:var(--text-muted);">${new Date().toLocaleTimeString()}</div>
+      </div>
+      <div class="result-card-body">
+        <div class="score-total">
+          <div class="score-circle ${verdictClass}">
+            <div class="score-num" style="color:${scoreColor}">${total}</div>
+            <div class="score-label">/ 100</div>
+          </div>
+          <div class="score-meta">
+            <div class="score-verdict ${verdictClass}">${verdict}</div>
+            <div class="score-summary">${escapeHtml(eval_.summary || '')}</div>
+          </div>
+        </div>
+
+        <div class="score-dims">
+          ${dims.map(d => {
+            const val = scores[d] || 0;
+            const pct = (val / 20) * 100;
+            return `
+              <div class="score-dim">
+                <div style="flex:1">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div class="score-dim-name">${d}</div>
+                    <div class="score-dim-val">${val}<span style="font-size:9px; color:var(--text-dim)">/20</span></div>
+                  </div>
+                  <div class="score-dim-bar-wrap">
+                    <div class="score-dim-bar" style="width:${pct}%"></div>
+                  </div>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+
+        ${eval_.issues && eval_.issues.length ? `
+          <div class="issues-list">
+            ${eval_.issues.map(i => `
+              <div class="issue-item">
+                <span class="issue-dot">⚠</span>
+                <span>${escapeHtml(i)}</span>
+              </div>`).join('')}
+          </div>` : ''}
+      </div>
+    </div>
+
+    <div class="result-card">
+      <div class="result-card-header">
+        <div class="result-card-title">💬 Skill Response</div>
+        <div style="font-size:11px; color:var(--text-muted);">What the skill produced</div>
+      </div>
+      <div class="result-card-body">
+        <div style="font-size:11px; color:var(--text-dim); margin-bottom:8px; padding:6px 10px; background:var(--surface2); border-radius:6px;">
+          <strong style="color:var(--text-muted)">Prompt:</strong> ${escapeHtml(prompt)}
+        </div>
+        <div class="response-text">${escapeHtml(data.skill_response || '')}</div>
+      </div>
+    </div>
+  `;
+}
+
+// ─── BATCH EVAL ──────────────────────────────────────────────────
+async function runBatch() {
+  if (!state.apiKey || !state.skillContent || !state.generatedTests.length) return;
+
+  const btn = document.getElementById('runBatchBtn');
+  btn.disabled = true;
+  btn.textContent = '⟳ Running...';
+
+  const batchArea = document.getElementById('batchResultArea');
+  batchArea.innerHTML = `
+    <div class="result-card">
+      <div class="loading-overlay visible">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Running ${state.generatedTests.length} tests sequentially...</div>
+      </div>
+    </div>`;
+
+  try {
+    const prompts = state.generatedTests.map(t => t.prompt);
+    const res = await fetch('/api/batch-eval', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: state.apiKey,
+        skill_content: state.skillContent,
+        test_prompts: prompts
+      })
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    const results = data.results || [];
+
+    // Add to history
+    results.forEach((r, i) => {
+      state.history.unshift({
+        id: Date.now() + i,
+        label: state.generatedTests[i]?.label || `Test ${i+1}`,
+        prompt: r.prompt,
+        result: r,
+        time: new Date().toLocaleTimeString()
+      });
+    });
+    updateHistoryBadge();
+    renderHistory();
+
+    renderBatchResults(batchArea, results);
+  } catch (err) {
+    batchArea.innerHTML = `<div style="color:var(--red); font-size:12px; padding:10px;">${escapeHtml(String(err))}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '▶ Run All Tests';
+    updateRunButtons();
+  }
+}
+
+function renderBatchResults(container, results) {
+  const totals = results.map(r => r.evaluation?.total || 0);
+  const avg = Math.round(totals.reduce((a, b) => a + b, 0) / totals.length);
+  const passed = results.filter(r => r.evaluation?.verdict === 'PASS').length;
+  const failed = results.filter(r => r.evaluation?.verdict === 'FAIL').length;
+
+  container.innerHTML = `
+    <div class="result-card">
+      <div class="result-card-header">
+        <div class="result-card-title">Batch Results</div>
+        <div style="font-size:11px; color:var(--text-muted);">${results.length} tests · ${new Date().toLocaleTimeString()}</div>
+      </div>
+      <div class="result-card-body">
+        <div class="batch-summary">
+          <div class="batch-stat">
+            <div class="batch-stat-num accent">${avg}</div>
+            <div class="batch-stat-label">Avg Score</div>
+          </div>
+          <div class="batch-stat">
+            <div class="batch-stat-num green">${passed}</div>
+            <div class="batch-stat-label">Passed</div>
+          </div>
+          <div class="batch-stat">
+            <div class="batch-stat-num red">${failed}</div>
+            <div class="batch-stat-label">Failed</div>
+          </div>
+        </div>
+        ${results.map((r, i) => {
+          const verdict = r.evaluation?.verdict || 'PARTIAL';
+          const score = r.evaluation?.total || 0;
+          const scoreColor = score >= 80 ? 'var(--green)' : score >= 50 ? 'var(--yellow)' : 'var(--red)';
+          const label = state.generatedTests[i]?.label || `Test ${i+1}`;
+          return `
+            <div class="batch-result-row">
+              <div class="batch-row-score" style="color:${scoreColor}">${score}</div>
+              <div class="batch-row-prompt">
+                <div style="font-weight:600; font-size:12px; color:var(--text); margin-bottom:2px;">${escapeHtml(label)}</div>
+                <div>${escapeHtml(r.prompt?.substring(0, 80))}${(r.prompt?.length||0) > 80 ? '...' : ''}</div>
+              </div>
+              <div class="batch-row-verdict ${verdict}">${verdict}</div>
+            </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+// ─── HISTORY ─────────────────────────────────────────────────────
+function updateHistoryBadge() {
+  document.getElementById('historyBadge').textContent = state.history.length;
+}
+
+function renderHistory() {
+  const container = document.getElementById('historyContainer');
+  if (!state.history.length) {
+    container.innerHTML = '<div class="history-empty">No runs yet. Test something to see history here.</div>';
+    return;
+  }
+  container.innerHTML = `
+    <button class="btn btn-danger clear-history-btn" onclick="clearHistory()">🗑 Clear History</button>
+    ${state.history.map(h => {
+      const verdict = h.result?.evaluation?.verdict || 'ERROR';
+      const score = h.result?.evaluation?.total || 0;
+      const scoreColor = score >= 80 ? 'var(--green)' : score >= 50 ? 'var(--yellow)' : 'var(--red)';
+      return `
+        <div class="history-item" onclick="showHistoryDetail(${h.id})">
+          <div class="history-score" style="color:${scoreColor}">${score}</div>
+          <div class="history-info">
+            <div class="history-prompt">${escapeHtml(h.label)}</div>
+            <div class="history-time">${h.time} · ${escapeHtml(h.prompt?.substring(0, 60))}...</div>
+          </div>
+          <div class="history-verdict ${verdict}">${verdict}</div>
+        </div>`;
+    }).join('')}`;
+}
+
+function clearHistory() {
+  state.history = [];
+  updateHistoryBadge();
+  renderHistory();
+}
+
+function showHistoryDetail(id) {
+  const entry = state.history.find(h => h.id === id);
+  if (!entry) return;
+  switchTab('test');
+  const resultArea = document.getElementById('resultArea');
+  renderSingleResult(resultArea, entry.result, entry.label, entry.prompt);
+}
+
+// ─── TABS ────────────────────────────────────────────────────────
+function switchTab(name) {
+  ['test','batch','history'].forEach(t => {
+    document.getElementById(`tab-${t}`).className = 'tab' + (t === name ? ' active' : '');
+    document.getElementById(`panel-${t}`).className = 'panel' + (t === name ? ' active' : '');
+  });
+}
+
+// ─── BUTTONS STATE ───────────────────────────────────────────────
+function updateRunButtons() {
+  const ready = !!(state.apiKey?.startsWith('gsk_') && state.skillContent);
+  document.getElementById('runCustomBtn').disabled = !ready;
+  document.getElementById('runBatchBtn').disabled = !(ready && state.generatedTests.length > 0);
+}
+
+// ─── UTILS ───────────────────────────────────────────────────────
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>
